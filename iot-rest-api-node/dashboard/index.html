@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Dashboard - Tugas Praktek 9</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --accent-blue: #3b82f6;
+            --accent-green: #22c55e;
+            --accent-red: #ef4444;
+            --accent-yellow: #eab308;
+            --accent-orange: #f97316;
+            --border-color: #334155;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+            border-bottom: 1px solid var(--border-color);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header h1 span { font-size: 1.6rem; }
+        .api-key-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-secondary);
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        .api-key-group label { font-size: 0.8rem; color: var(--text-secondary); white-space: nowrap; }
+        .api-key-group input {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            width: 180px;
+            font-family: 'Consolas', monospace;
+        }
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: var(--accent-red);
+            transition: background 0.3s;
+        }
+        .status-dot.connected { background: var(--accent-green); animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* ===== ALERT BANNER ===== */
+        .alert-banner {
+            display: none;
+            background: linear-gradient(135deg, #991b1b, #7f1d1d);
+            border: 1px solid var(--accent-red);
+            padding: 14px 24px;
+            align-items: center;
+            gap: 12px;
+            animation: alertFlash 1s ease-in-out 3;
+        }
+        .alert-banner.show { display: flex; }
+        .alert-banner .icon { font-size: 1.5rem; }
+        .alert-banner .text { flex: 1; font-weight: 600; }
+        .alert-banner .close-btn {
+            background: none; border: none; color: white;
+            font-size: 1.3rem; cursor: pointer; padding: 4px 8px;
+        }
+        @keyframes alertFlash {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* ===== MAIN GRID ===== */
+        .main { padding: 20px 24px; }
+        .grid { display: grid; gap: 20px; }
+        .grid-top { grid-template-columns: repeat(4, 1fr); }
+        .grid-middle { grid-template-columns: 1fr 1fr; }
+        .grid-bottom { grid-template-columns: 2fr 1fr; }
+
+        @media (max-width: 1200px) {
+            .grid-top { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .grid-top, .grid-middle, .grid-bottom { grid-template-columns: 1fr; }
+        }
+
+        /* ===== CARDS ===== */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .card-header h3 {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* ===== STAT CARDS ===== */
+        .stat-value {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin: 8px 0;
+        }
+        .stat-label { font-size: 0.8rem; color: var(--text-secondary); }
+        .stat-suhu { color: var(--accent-orange); }
+        .stat-kelembaban { color: var(--accent-blue); }
+        .stat-threshold { color: var(--accent-yellow); }
+        .stat-lamp { color: var(--accent-green); }
+        .stat-value.alert { color: var(--accent-red) !important; }
+
+        /* ===== THRESHOLD CONTROL ===== */
+        .threshold-form {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        .threshold-form input {
+            flex: 1;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            width: 80px;
+        }
+        .threshold-form input:focus { outline: none; border-color: var(--accent-blue); }
+
+        /* ===== BUTTONS ===== */
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        .btn:active { transform: translateY(0); }
+        .btn-green { background: var(--accent-green); color: #052e16; }
+        .btn-red { background: var(--accent-red); color: white; }
+        .btn-blue { background: var(--accent-blue); color: white; }
+        .btn-yellow { background: var(--accent-yellow); color: #422006; }
+
+        .lamp-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 12px;
+        }
+        .lamp-controls .btn { flex: 1; justify-content: center; }
+
+        /* ===== CHART ===== */
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        /* ===== TABLE ===== */
+        .table-container { overflow-x: auto; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        th {
+            background: var(--bg-primary);
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+        }
+        td {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        tr:hover td { background: rgba(59, 130, 246, 0.05); }
+        .alert-row { background: rgba(239, 68, 68, 0.1) !important; }
+        .alert-row td { color: var(--accent-red); }
+
+        /* ===== LOG ===== */
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.8rem;
+        }
+        .log-entry {
+            padding: 6px 10px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+            line-height: 1.4;
+        }
+        .log-entry.sensor { color: var(--accent-blue); }
+        .log-entry.kontrol { color: var(--accent-green); }
+        .log-entry.alert { color: var(--accent-red); font-weight: 600; }
+        .log-entry.threshold { color: var(--accent-yellow); }
+        .log-entry.system { color: var(--text-secondary); }
+        .log-time { color: var(--text-secondary); margin-right: 6px; }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg-primary); }
+        ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 3px; }
+
+        .mt-20 { margin-top: 20px; }
+    </style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<header class="header">
+    <h1><span>🌐</span> IoT Dashboard — Tugas Praktek 9</h1>
+    <div class="api-key-group">
+        <label>🔑 X-API-Key:</label>
+        <input type="text" id="apiKeyInput" value="uniska-iot-2026" placeholder="Masukkan API Key">
+    </div>
+    <div class="connection-status">
+        <div class="status-dot" id="wsStatusDot"></div>
+        <span id="wsStatusText">Disconnected</span>
+    </div>
+</header>
+
+<!-- ===== ALERT BANNER ===== -->
+<div class="alert-banner" id="alertBanner">
+    <span class="icon">🚨</span>
+    <span class="text" id="alertText">PERINGATAN: Suhu melewati batas threshold!</span>
+    <button class="close-btn" onclick="closeAlert()">&times;</button>
+</div>
+
+<main class="main">
+
+    <!-- ===== STAT CARDS ===== -->
+    <div class="grid grid-top">
+        <div class="card">
+            <div class="card-header"><h3>🌡️ Suhu</h3></div>
+            <div class="stat-value stat-suhu" id="suhuValue">--</div>
+            <div class="stat-label">Derajat Celsius (°C)</div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3>💧 Kelembaban</h3></div>
+            <div class="stat-value stat-kelembaban" id="kelembabanValue">--</div>
+            <div class="stat-label">Persentase (%)</div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3>⚠️ Batas Suhu</h3></div>
+            <div class="stat-value stat-threshold" id="thresholdValue">30.0</div>
+            <div class="stat-label">Threshold (°C)</div>
+            <div class="threshold-form">
+                <input type="number" id="thresholdInput" step="0.1" min="0" max="100" placeholder="°C">
+                <button class="btn btn-yellow" onclick="updateThreshold()">💾 Simpan</button>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h3>💡 Lampu</h3></div>
+            <div class="stat-value stat-lamp" id="lampValue">OFF</div>
+            <div class="stat-label">Status Aktuator</div>
+            <div class="lamp-controls">
+                <button class="btn btn-green" onclick="kontrolLampu('on')">💡 Nyalakan</button>
+                <button class="btn btn-red" onclick="kontrolLampu('off')">⚫ Matikan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== CHART ===== -->
+    <div class="grid grid-middle mt-20">
+        <div class="card">
+            <div class="card-header">
+                <h3>📈 Grafik Sensor Real-Time</h3>
+                <span style="font-size:0.75rem;color:var(--text-secondary)">20 data terakhir</span>
+            </div>
+            <div class="chart-container">
+                <canvas id="sensorChart"></canvas>
+            </div>
+        </div>
+
+        <!-- ===== LOG AKTIVITAS ===== -->
+        <div class="card">
+            <div class="card-header">
+                <h3>📋 Log Aktivitas</h3>
+                <button class="btn btn-blue" onclick="clearLog()" style="padding:6px 12px;font-size:0.75rem">🗑️ Clear</button>
+            </div>
+            <div class="log-container" id="logContainer">
+                <div class="log-entry system"><span class="log-time">[--:--:--]</span>Dashboard dimuat, menunggu koneksi...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TABLE HISTORY ===== -->
+    <div class="grid grid-bottom mt-20">
+        <div class="card">
+            <div class="card-header">
+                <h3>📊 Riwayat 10 Data Terakhir</h3>
+                <button class="btn btn-blue" onclick="fetchHistory()" style="padding:6px 12px;font-size:0.75rem">🔄 Refresh</button>
+            </div>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Suhu (°C)</th>
+                            <th>Kelembaban (%)</th>
+                            <th>Timestamp</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr><td colspan="5" style="text-align:center;color:var(--text-secondary)">Memuat data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ===== INFO PANEL ===== -->
+        <div class="card">
+            <div class="card-header"><h3>ℹ️ Informasi Sistem</h3></div>
+            <div style="font-size:0.85rem; line-height:1.8;">
+                <p><strong>Mata Kuliah:</strong> Pemrograman IoT (TIF1504)</p>
+                <p><strong>Tugas:</strong> Praktek 9 — REST API Node</p>
+                <hr style="border-color:var(--border-color);margin:10px 0">
+                <p><strong>✅ Fitur Pengembangan:</strong></p>
+                <ol style="padding-left:18px;color:var(--text-secondary)">
+                    <li>Threshold Alert (PUT /api/threshold)</li>
+                    <li>Grafik Chart.js Real-Time</li>
+                    <li>Autentikasi API Key (X-API-Key)</li>
+                    <li>WebSocket Real-Time (tanpa polling)</li>
+                    <li>Database SQLite History</li>
+                </ol>
+                <hr style="border-color:var(--border-color);margin:10px 0">
+                <p><strong>Endpoints:</strong></p>
+                <ul style="padding-left:18px;color:var(--text-secondary);font-family:Consolas,monospace;font-size:0.8rem">
+                    <li>GET /api/suhu</li>
+                    <li>GET /api/history</li>
+                    <li>POST /api/kontrol</li>
+                    <li>PUT /api/threshold</li>
+                    <li>WS /ws/sensor</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+// ==============================================================================
+// KONFIGURASI
+// ==============================================================================
+const BASE_URL = 'http://localhost:1880';
+const WS_URL = 'ws://localhost:1880/ws/sensor';
+const MAX_CHART_POINTS = 20;
+
+// ==============================================================================
+// STATE
+// ==============================================================================
+let ws = null;
+let reconnectTimer = null;
+let currentThreshold = 30.0;
+let chartLabels = [];
+let chartSuhu = [];
+let chartKelembaban = [];
+let sensorChart = null;
+let alertAudio = null;
+
+// ==============================================================================
+// HELPERS
+// ==============================================================================
+function getApiKey() {
+    return document.getElementById('apiKeyInput').value.trim();
+}
+
+function getTime(isoStr) {
+    if (!isoStr) return new Date().toLocaleTimeString('id-ID');
+    try {
+        return new Date(isoStr).toLocaleTimeString('id-ID');
+    } catch {
+        return isoStr;
+    }
+}
+
+function getNow() {
+    return new Date().toLocaleTimeString('id-ID');
+}
+
+// ==============================================================================
+// LOG
+// ==============================================================================
+function addLog(message, type = 'system') {
+    const container = document.getElementById('logContainer');
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${type}`;
+    entry.innerHTML = `<span class="log-time">[${getNow()}]</span>${message}`;
+    container.insertBefore(entry, container.firstChild);
+
+    // Max 100 entries
+    while (container.children.length > 100) {
+        container.removeChild(container.lastChild);
+    }
+}
+
+function clearLog() {
+    document.getElementById('logContainer').innerHTML = '';
+    addLog('Log dibersihkan', 'system');
+}
+
+// ==============================================================================
+// ALERT
+// ==============================================================================
+function showAlert(text) {
+    const banner = document.getElementById('alertBanner');
+    document.getElementById('alertText').textContent = text;
+    banner.classList.add('show');
+
+    // Play beep sound
+    try {
+        if (!alertAudio) {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.frequency.value = 800;
+            gain.gain.value = 0.3;
+            osc.start();
+            setTimeout(() => { osc.stop(); ctx.close(); }, 300);
+        }
+    } catch (e) { /* ignore audio errors */ }
+
+    // Auto-hide after 10 seconds
+    setTimeout(() => { banner.classList.remove('show'); }, 10000);
+}
+
+function closeAlert() {
+    document.getElementById('alertBanner').classList.remove('show');
+}
+
+// ==============================================================================
+// CHART.JS
+// ==============================================================================
+function initChart() {
+    const ctx = document.getElementById('sensorChart').getContext('2d');
+    sensorChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: chartLabels,
+            datasets: [
+                {
+                    label: 'Suhu (°C)',
+                    data: chartSuhu,
+                    borderColor: '#f97316',
+                    backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#f97316',
+                    tension: 0.3,
+                    fill: true,
+                    yAxisID: 'y'
+                },
+                {
+                    label: 'Kelembaban (%)',
+                    data: chartKelembaban,
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 3,
+                    pointBackgroundColor: '#3b82f6',
+                    tension: 0.3,
+                    fill: true,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: {
+                    labels: { color: '#94a3b8', usePointStyle: true, padding: 16 }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: { color: '#94a3b8', maxRotation: 45, font: { size: 10 } },
+                    grid: { color: 'rgba(51,65,85,0.3)' }
+                },
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    title: { display: true, text: 'Suhu (°C)', color: '#f97316' },
+                    ticks: { color: '#f97316' },
+                    grid: { color: 'rgba(51,65,85,0.3)' },
+                    min: 20,
+                    max: 40
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    title: { display: true, text: 'Kelembaban (%)', color: '#3b82f6' },
+                    ticks: { color: '#3b82f6' },
+                    grid: { drawOnChartArea: false },
+                    min: 40,
+                    max: 100
+                }
+            }
+        }
+    });
+}
+
+function addChartData(suhu, kelembaban, timestamp) {
+    const label = getTime(timestamp);
+    chartLabels.push(label);
+    chartSuhu.push(suhu);
+    chartKelembaban.push(kelembaban);
+
+    if (chartLabels.length > MAX_CHART_POINTS) {
+        chartLabels.shift();
+        chartSuhu.shift();
+        chartKelembaban.shift();
+    }
+
+    sensorChart.update('none');
+}
+
+// ==============================================================================
+// WEBSOCKET
+// ==============================================================================
+function connectWebSocket() {
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+        return;
+    }
+
+    addLog('Menghubungkan WebSocket...', 'system');
+
+    ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+        document.getElementById('wsStatusDot').classList.add('connected');
+        document.getElementById('wsStatusText').textContent = 'Connected';
+        addLog('✅ WebSocket terhubung ke ' + WS_URL, 'system');
+
+        if (reconnectTimer) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+        }
+    };
+
+    ws.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        } catch (e) {
+            console.warn('WS parse error:', e);
+        }
+    };
+
+    ws.onclose = () => {
+        document.getElementById('wsStatusDot').classList.remove('connected');
+        document.getElementById('wsStatusText').textContent = 'Disconnected';
+        addLog('❌ WebSocket terputus. Reconnect dalam 3 detik...', 'system');
+
+        // Auto-reconnect
+        reconnectTimer = setTimeout(connectWebSocket, 3000);
+    };
+
+    ws.onerror = (err) => {
+        console.error('WS error:', err);
+    };
+}
+
+function handleWebSocketMessage(data) {
+    if (data.type === 'sensor') {
+        // Update stat cards
+        document.getElementById('suhuValue').textContent = data.suhu.toFixed(1);
+        document.getElementById('kelembabanValue').textContent = data.kelembaban.toFixed(1);
+
+        const suhuEl = document.getElementById('suhuValue');
+        if (data.alert) {
+            suhuEl.classList.add('alert');
+        } else {
+            suhuEl.classList.remove('alert');
+        }
+
+        if (data.threshold !== undefined) {
+            currentThreshold = data.threshold;
+            document.getElementById('thresholdValue').textContent = data.threshold.toFixed(1);
+        }
+
+        if (data.lamp !== undefined) {
+            document.getElementById('lampValue').textContent = data.lamp.toUpperCase();
+        }
+
+        // Update chart
+        addChartData(data.suhu, data.kelembaban, data.timestamp);
+
+        // Log
+        addLog(`📡 Suhu: ${data.suhu.toFixed(1)}°C | Kelembaban: ${data.kelembaban.toFixed(1)}%`, 'sensor');
+
+        // Alert if threshold exceeded
+        if (data.alert) {
+            showAlert(`🚨 PERINGATAN: Suhu ${data.suhu.toFixed(1)}°C melewati batas ${data.threshold.toFixed(1)}°C!`);
+            addLog(`🚨 ALERT: Suhu ${data.suhu.toFixed(1)}°C > Threshold ${data.threshold.toFixed(1)}°C`, 'alert');
+        }
+
+    } else if (data.type === 'kontrol') {
+        document.getElementById('lampValue').textContent = data.action.toUpperCase();
+        addLog(`💡 Kontrol: ${data.device} → ${data.action.toUpperCase()}`, 'kontrol');
+
+    } else if (data.type === 'threshold') {
+        currentThreshold = data.threshold;
+        document.getElementById('thresholdValue').textContent = data.threshold.toFixed(1);
+        addLog(`⚠️ Threshold diperbarui: ${data.threshold.toFixed(1)}°C`, 'threshold');
+
+    } else if (data.type === 'alert') {
+        showAlert(data.message || `Suhu ${data.suhu}°C melewati batas!`);
+        addLog(`🚨 ${data.message}`, 'alert');
+    }
+}
+
+// ==============================================================================
+// REST API CALLS
+// ==============================================================================
+async function apiRequest(method, endpoint, body = null) {
+    const headers = {
+        'Content-Type': 'application/json',
+        'X-API-Key': getApiKey()
+    };
+
+    const options = { method, headers };
+    if (body) options.body = JSON.stringify(body);
+
+    try {
+        const response = await fetch(`${BASE_URL}${endpoint}`, options);
+        const data = await response.json();
+
+        if (response.status === 401) {
+            addLog('🔒 401 Unauthorized: API Key tidak valid!', 'alert');
+            alert('❌ 401 Unauthorized\n\nAPI Key tidak valid atau kosong.\nPeriksa kolom X-API-Key di header dashboard.');
+        }
+
+        return { status: response.status, data };
+    } catch (error) {
+        addLog(`❌ Error: ${error.message}`, 'alert');
+        console.error('API Error:', error);
+        return { status: 0, data: null, error };
+    }
+}
+
+async function fetchLatestSensor() {
+    const result = await apiRequest('GET', '/api/suhu');
+    if (result.status === 200 && result.data && result.data.data) {
+        const d = result.data.data;
+        document.getElementById('suhuValue').textContent = d.suhu ? d.suhu.toFixed(1) : '--';
+        document.getElementById('kelembabanValue').textContent = d.kelembaban ? d.kelembaban.toFixed(1) : '--';
+        if (d.threshold !== undefined) {
+            currentThreshold = d.threshold;
+            document.getElementById('thresholdValue').textContent = d.threshold.toFixed(1);
+        }
+    }
+}
+
+async function fetchHistory() {
+    const result = await apiRequest('GET', '/api/history');
+    if (result.status === 200 && result.data && result.data.data) {
+        renderHistoryTable(result.data.data.slice(0, 10));
+        addLog(`📊 History dimuat: ${result.data.count} record`, 'system');
+    }
+}
+
+function renderHistoryTable(rows) {
+    const tbody = document.getElementById('historyTableBody');
+    if (!rows || rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-secondary)">Belum ada data</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = rows.map((row, i) => {
+        const isAlert = row.suhu > currentThreshold;
+        return `<tr class="${isAlert ? 'alert-row' : ''}">
+            <td>${row.id || i + 1}</td>
+            <td>${row.suhu.toFixed(1)}</td>
+            <td>${row.kelembaban.toFixed(1)}</td>
+            <td>${getTime(row.timestamp)}</td>
+            <td>${isAlert ? '🚨 Alert' : '✅ Normal'}</td>
+        </tr>`;
+    }).join('');
+}
+
+async function kontrolLampu(action) {
+    addLog(`📤 Mengirim perintah: Lampu → ${action.toUpperCase()}...`, 'kontrol');
+    const result = await apiRequest('POST', '/api/kontrol', { device: 'lamp', action });
+    if (result.status === 200) {
+        document.getElementById('lampValue').textContent = action.toUpperCase();
+        addLog(`✅ Perintah berhasil: Lampu → ${action.toUpperCase()}`, 'kontrol');
+    }
+}
+
+async function updateThreshold() {
+    const input = document.getElementById('thresholdInput');
+    const value = parseFloat(input.value);
+    if (isNaN(value)) {
+        alert('Masukkan angka yang valid untuk threshold.');
+        return;
+    }
+
+    addLog(`📤 Mengubah threshold ke ${value}°C...`, 'threshold');
+    const result = await apiRequest('PUT', '/api/threshold', { threshold: value });
+    if (result.status === 200) {
+        currentThreshold = value;
+        document.getElementById('thresholdValue').textContent = value.toFixed(1);
+        input.value = '';
+        addLog(`✅ Threshold berhasil diubah ke ${value}°C`, 'threshold');
+    }
+}
+
+// ==============================================================================
+// INITIALIZATION
+// ==============================================================================
+document.addEventListener('DOMContentLoaded', () => {
+    initChart();
+    connectWebSocket();
+
+    // Initial fetch
+    setTimeout(() => {
+        fetchLatestSensor();
+        fetchHistory();
+    }, 500);
+});
+</script>
+</body>
+</html>
